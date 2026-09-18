@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // No auth anywhere in this ecosystem, by explicit design -- same tradeoff as firestore.rules
+    // in the TO's site's repo. Anyone with the link can view and upload memo PDFs.
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}

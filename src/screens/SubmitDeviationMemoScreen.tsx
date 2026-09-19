@@ -100,12 +100,21 @@ export function SubmitDeviationMemoScreen({ roster, memos, updateMemo }: Props) 
                       <TableCell>
                         {submittingId === m.id ? (
                           <div className="flex items-center gap-2">
-                            <input
-                              type="file"
-                              accept="application/pdf"
-                              onChange={(e) => setFile(e.target.files?.[0])}
-                              className="text-xs text-muted-foreground"
-                            />
+                            {file ? (
+                              <span className="flex items-center gap-1.5 text-xs">
+                                <span className="max-w-32 truncate">{file.name}</span>
+                                <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => setFile(undefined)}>
+                                  Change
+                                </Button>
+                              </span>
+                            ) : (
+                              <input
+                                type="file"
+                                accept="application/pdf"
+                                onChange={(e) => setFile(e.target.files?.[0])}
+                                className="text-xs text-muted-foreground"
+                              />
+                            )}
                             <Button size="sm" disabled={!file || busy} onClick={() => handleSubmit(m)}>
                               {busy ? "Uploading..." : "Submit"}
                             </Button>

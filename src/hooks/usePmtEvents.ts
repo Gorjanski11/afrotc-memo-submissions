@@ -12,6 +12,7 @@ function mapPmtEvent(id: string, data: Record<string, unknown>): PmtEvent {
     title: (data.title as string) ?? "",
     eventDate: (data.eventDate as string) ?? "",
     eventType: ((data.eventType as PmtEventType) ?? "LLAB") as PmtEventType,
+    trainingWeek: (data.trainingWeek as number | null | undefined) ?? undefined,
   };
 }
 

@@ -193,12 +193,22 @@ export function SubmitAbsenceMemoScreen({ roster, events, createMemo }: Props) {
             </label>
             <div className="space-y-1.5">
               <Label>Memorandum PDF</Label>
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => setFile(e.target.files?.[0])}
-                className="block w-full text-sm text-muted-foreground"
-              />
+              {file ? (
+                <div className="flex items-center gap-2 rounded-md border border-input p-2 text-sm">
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{file.name}</span>
+                  <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 shrink-0" onClick={() => setFile(undefined)}>
+                    Change
+                  </Button>
+                </div>
+              ) : (
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => setFile(e.target.files?.[0])}
+                  className="block w-full text-sm text-muted-foreground"
+                />
+              )}
             </div>
             {submitError && <p className="text-sm text-destructive">{submitError}</p>}
             <Button onClick={handleSubmit} disabled={submitting || !canSubmit}>

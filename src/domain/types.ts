@@ -16,6 +16,7 @@ export interface PmtEvent {
   title: string;
   eventDate: string;
   eventType: PmtEventType;
+  trainingWeek: number | undefined;
 }
 
 /**

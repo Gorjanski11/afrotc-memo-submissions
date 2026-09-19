@@ -57,8 +57,12 @@ export function useAbsenceMemos() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | undefined>();
 
-  const refetch = useCallback(async () => {
-    setLoading(true);
+  // `silent` skips the loading flip -- App.tsx swaps its entire screen for a full-page skeleton
+  // while any hook's `loading` is true, which would otherwise unmount whichever submission screen
+  // is mid-submit the moment its own post-write refetch starts, silently discarding that
+  // component's "Submitting..."/success-banner state before it ever gets to show the result.
+  const refetch = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const snap = await getDocs(collection(db, COLLECTION));
       setMemos(snap.docs.map((d) => mapMemo(d.id, d.data())));
@@ -66,7 +70,7 @@ export function useAbsenceMemos() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load absence memos.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -77,7 +81,7 @@ export function useAbsenceMemos() {
   const createMemo = useCallback(
     async (input: AbsenceMemoInput) => {
       const ref = await addDoc(collection(db, COLLECTION), { ...sanitizeForFirestore(input), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-      await refetch();
+      await refetch(true);
       return { id: ref.id, ...input } satisfies AbsenceMemo;
     },
     [refetch]
@@ -86,7 +90,7 @@ export function useAbsenceMemos() {
   const updateMemo = useCallback(
     async (id: string, input: Partial<AbsenceMemoInput>) => {
       await updateDoc(doc(db, COLLECTION, id), { ...sanitizeForFirestore(input), updatedAt: serverTimestamp() });
-      await refetch();
+      await refetch(true);
     },
     [refetch]
   );

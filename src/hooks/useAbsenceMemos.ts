@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { addDoc, collection, doc, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { sanitizeForFirestore } from "../lib/firestoreUtils";
 import type { AbsenceAsClass, AbsenceMemoStatus, AbsenceReason, Instructor } from "../domain/constants";
@@ -11,6 +11,8 @@ export interface AbsenceMemoInput {
   cadetId: string;
   cadetName: string;
   pmtEventIds: string[];
+  attendanceIds: string[];
+  assignedAt: string | undefined;
   asClass: AbsenceAsClass | undefined;
   classDate: string | undefined;
   classTitle: string | undefined;
@@ -34,6 +36,8 @@ function mapMemo(id: string, data: Record<string, unknown>): AbsenceMemo {
     cadetId: (data.cadetId as string) ?? "",
     cadetName: (data.cadetName as string) ?? "",
     pmtEventIds: (data.pmtEventIds as string[]) ?? [],
+    attendanceIds: (data.attendanceIds as string[]) ?? [],
+    assignedAt: (data.assignedAt as string | null | undefined) ?? undefined,
     asClass: (data.asClass as AbsenceAsClass | null | undefined) ?? undefined,
     classDate: (data.classDate as string | null | undefined) ?? undefined,
     classTitle: (data.classTitle as string | null | undefined) ?? undefined,
@@ -95,5 +99,13 @@ export function useAbsenceMemos() {
     [refetch]
   );
 
-  return { memos, loading, error, refetch, createMemo, updateMemo };
+  const deleteMemo = useCallback(
+    async (id: string) => {
+      await deleteDoc(doc(db, COLLECTION, id));
+      await refetch(true);
+    },
+    [refetch]
+  );
+
+  return { memos, loading, error, refetch, createMemo, updateMemo, deleteMemo };
 }

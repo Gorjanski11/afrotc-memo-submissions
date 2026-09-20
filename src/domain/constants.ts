@@ -34,8 +34,13 @@ export type AbsenceAsClass = (typeof ABSENCE_AS_CLASSES)[number];
 export const INSTRUCTORS = ["Lt Col Laboy", "Capt Jackson", "Capt Deaton", "TSgt Reynoso"] as const;
 export type Instructor = (typeof INSTRUCTORS)[number];
 
-/** Absence Memo review states. Accepted -> flips the covered Attendance record(s) PE to AE. Rejected -> flips PE to A. Returned -> sent back to the cadet to fix/resubmit, no Attendance side-effect yet. */
-export const ABSENCE_MEMO_STATUSES = ["Pending", "Accepted", "Rejected", "Returned"] as const;
+/**
+ * Absence Memo lifecycle. "Assigned" -- auto-created by the Accountability site the instant a
+ * cadet is marked Absent. "Pending" -- the cadet has submitted, which also flips the covered
+ * Attendance record(s) A -> PE. Accepted -> flips PE to AE. Rejected -> final, flips PE back to A.
+ * Returned -> sent back to the cadet to fix and resubmit, no Attendance side-effect (stays PE).
+ */
+export const ABSENCE_MEMO_STATUSES = ["Assigned", "Pending", "Accepted", "Rejected", "Returned"] as const;
 export type AbsenceMemoStatus = (typeof ABSENCE_MEMO_STATUSES)[number];
 
 /** Deviation Memo lifecycle -- assign, cadet submits, reviewer accepts or returns. No Rejected state (a deviation memo is always eventually resolved, not denied outright). */

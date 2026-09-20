@@ -95,7 +95,14 @@ function App() {
             <>
               <TabsContent value="absence">
                 <AnimatedPanel>
-                  <SubmitAbsenceMemoScreen roster={rosterState.roster} events={eventsState.events} createMemo={absenceState.createMemo} />
+                  <SubmitAbsenceMemoScreen
+                    roster={rosterState.roster}
+                    events={eventsState.events}
+                    memos={absenceState.memos}
+                    createMemo={absenceState.createMemo}
+                    updateMemo={absenceState.updateMemo}
+                    deleteMemo={absenceState.deleteMemo}
+                  />
                 </AnimatedPanel>
               </TabsContent>
               <TabsContent value="deviation">

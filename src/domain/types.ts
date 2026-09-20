@@ -34,6 +34,10 @@ export interface AbsenceMemo {
   cadetName: string;
   /** Every PMT this single memo covers -- a cadet who missed a whole day (PT + LLAB + FM) submits one memo, not three. Empty when this memo is only for an AS-Class absence below. */
   pmtEventIds: string[];
+  /** Attendance doc ids parallel to `pmtEventIds` -- flipped A->PE on submit. Empty for AS-Class-only memos. */
+  attendanceIds: string[];
+  /** ISO datetime the Accountability site auto-created this as "Assigned" -- undefined for an AS-Class-only memo the cadet created fresh. */
+  assignedAt: string | undefined;
   /**
    * AS-Class-absence fields -- a memo can cover a missed PMT, a missed AS-Class session, or both.
    * All four are set together or not at all: which AS Class, the date (manually entered -- an

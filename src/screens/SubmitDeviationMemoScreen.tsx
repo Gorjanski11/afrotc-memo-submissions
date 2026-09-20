@@ -29,8 +29,15 @@ export function SubmitDeviationMemoScreen({ roster, memos, updateMemo }: Props) 
     () => memos.filter((m) => m.cadetId === cadetId && m.status === "Assigned").sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? "")),
     [memos, cadetId]
   );
+  const myReturned = useMemo(
+    () => memos.filter((m) => m.cadetId === cadetId && m.status === "Returned").sort((a, b) => (b.reviewedAt ?? "").localeCompare(a.reviewedAt ?? "")),
+    [memos, cadetId]
+  );
   const mySubmitted = useMemo(
-    () => memos.filter((m) => m.cadetId === cadetId && m.status !== "Assigned").sort((a, b) => (b.submittedAt ?? "").localeCompare(a.submittedAt ?? "")),
+    () =>
+      memos
+        .filter((m) => m.cadetId === cadetId && m.status !== "Assigned" && m.status !== "Returned")
+        .sort((a, b) => (b.submittedAt ?? "").localeCompare(a.submittedAt ?? "")),
     [memos, cadetId]
   );
 
@@ -54,6 +61,7 @@ export function SubmitDeviationMemoScreen({ roster, memos, updateMemo }: Props) 
       setBusy(false);
     }
   };
+
 
   return (
     <div>
@@ -140,6 +148,50 @@ export function SubmitDeviationMemoScreen({ roster, memos, updateMemo }: Props) 
               {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
             </CardContent>
           </Card>
+
+          {myReturned.length > 0 && (
+            <Card className="border-warning/50">
+              <CardHeader>
+                <CardTitle className="text-warning-foreground">Returned -- needs fixing</CardTitle>
+                <CardDescription>Cadre sent these back. Attach a corrected PDF and resubmit within 48 hours.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-2">
+                {myReturned.map((m) => (
+                  <div key={m.id} className="rounded-md border border-input p-3">
+                    <div className="mb-1 text-sm font-medium">{m.reason}</div>
+                    {m.reviewNotes && <p className="mb-2 text-sm text-muted-foreground">Cadre notes: {m.reviewNotes}</p>}
+                    {submittingId === m.id ? (
+                      <div className="flex items-center gap-2">
+                        {file ? (
+                          <span className="flex items-center gap-1.5 text-xs">
+                            <span className="max-w-32 truncate">{file.name}</span>
+                            <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => setFile(undefined)}>
+                              Change
+                            </Button>
+                          </span>
+                        ) : (
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            onChange={(e) => setFile(e.target.files?.[0])}
+                            className="text-xs text-muted-foreground"
+                          />
+                        )}
+                        <Button size="sm" disabled={!file || busy} onClick={() => handleSubmit(m)}>
+                          {busy ? "Uploading..." : "Resubmit"}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="secondary" onClick={() => setSubmittingId(m.id)}>
+                        <Upload className="h-3.5 w-3.5" />
+                        Attach corrected PDF
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {mySubmitted.length > 0 && (
             <Card>

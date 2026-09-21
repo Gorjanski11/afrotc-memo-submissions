@@ -1,15 +1,12 @@
 import { motion } from "motion/react";
-import { AnimatePresence } from "motion/react";
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Moon, Sun, FileText, ClipboardList } from "lucide-react";
+import { FileText, ClipboardList } from "lucide-react";
 import { useRoster } from "./hooks/useRoster";
 import { usePmtEvents } from "./hooks/usePmtEvents";
 import { useAbsenceMemos } from "./hooks/useAbsenceMemos";
 import { useDeviationMemos } from "./hooks/useDeviationMemos";
-import { useTheme } from "./hooks/useTheme";
 import { SubmitAbsenceMemoScreen } from "./screens/SubmitAbsenceMemoScreen";
 import { SubmitDeviationMemoScreen } from "./screens/SubmitDeviationMemoScreen";
 
@@ -32,7 +29,6 @@ function App() {
   const eventsState = usePmtEvents();
   const absenceState = useAbsenceMemos();
   const deviationState = useDeviationMemos();
-  const { theme, toggleTheme } = useTheme();
 
   const [screen, setScreen] = useState<Screen>("absence");
 
@@ -51,20 +47,6 @@ function App() {
             <span className="text-sm text-muted-foreground">Absence & Deviation memos</span>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle dark mode" className="overflow-hidden">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={theme}
-              initial={{ rotate: -90, opacity: 0 }}
-              animate={{ rotate: 0, opacity: 1 }}
-              exit={{ rotate: 90, opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              className="flex"
-            >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </motion.span>
-          </AnimatePresence>
-        </Button>
       </header>
 
       <Tabs value={screen} onValueChange={(v) => setScreen(v as Screen)} className="flex flex-1 flex-col overflow-hidden">

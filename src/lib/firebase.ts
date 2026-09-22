@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { connectStorageEmulator, getStorage } from "firebase/storage";
-import { connectAuthEmulator, getAuth } from "firebase/auth";
+import { connectAuthEmulator, getAuth, setPersistence, browserSessionPersistence } from "firebase/auth";
 
 // Same Firebase project/database as the TO's site, Accountability site, and the cadre-facing
 // Memorandums site (afrotc-memorandums-tracker) -- this is the GMC/POC-facing counterpart to that
@@ -23,6 +23,11 @@ export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
+
+// Session-only persistence -- closing the tab/browser signs the user out (Firebase's default,
+// browserLocalPersistence, would keep them signed in indefinitely across visits). Paired with the
+// inactivity auto-logout in useAuth.ts.
+void setPersistence(auth, browserSessionPersistence);
 
 // In local dev, talk to the Firebase Local Emulator Suite instead of production so testing never
 // touches real cadet data or uploads real files. Start it with `firebase emulators:start` before

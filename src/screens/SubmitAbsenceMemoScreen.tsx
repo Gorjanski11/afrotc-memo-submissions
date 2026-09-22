@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Send, CheckCircle2, Plus, Upload, CalendarClock } from "lucide-react";
-import { CadetCombobox } from "../components/CadetCombobox";
 import { uploadMemoPdf } from "../lib/storage";
 import { flipAttendanceToPendingExcuse } from "../lib/attendanceLink";
 import { ABSENCE_AS_CLASSES, ABSENCE_REASONS, INSTRUCTORS } from "../domain/constants";
@@ -15,7 +14,7 @@ import type { AbsenceMemo, PmtEvent, RosterPerson } from "../domain/types";
 import type { AbsenceMemoInput } from "../hooks/useAbsenceMemos";
 
 interface Props {
-  roster: RosterPerson[];
+  cadet: RosterPerson;
   events: PmtEvent[];
   memos: AbsenceMemo[];
   createMemo: (input: AbsenceMemoInput) => Promise<AbsenceMemo>;
@@ -31,8 +30,8 @@ function eventLabel(events: PmtEvent[], id: string): string {
   return `${e.eventType} — ${e.title} (${new Date(e.eventDate).toLocaleDateString()})`;
 }
 
-export function SubmitAbsenceMemoScreen({ roster, events, memos, createMemo, updateMemo, deleteMemo }: Props) {
-  const [cadetId, setCadetId] = useState("");
+export function SubmitAbsenceMemoScreen({ cadet, events, memos, createMemo, updateMemo, deleteMemo }: Props) {
+  const cadetId = cadet.id;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addAsClass, setAddAsClass] = useState(false);
   const [asClass, setAsClass] = useState<AbsenceAsClass | typeof NONE>(NONE);
@@ -104,10 +103,10 @@ export function SubmitAbsenceMemoScreen({ roster, events, memos, createMemo, upd
     setFutureFile(undefined);
   };
 
-  const canSubmitFuture = !!cadetId && futureSelectedIds.size > 0 && futureReason !== NONE && !!futureFile;
+  const canSubmitFuture = futureSelectedIds.size > 0 && futureReason !== NONE && !!futureFile;
 
   const hasClassInfo = addAsClass && asClass !== NONE && classDate.trim() && classTitle.trim() && instructor !== NONE;
-  const canSubmit = !!cadetId && (selectedIds.size > 0 || hasClassInfo) && !!file;
+  const canSubmit = (selectedIds.size > 0 || hasClassInfo) && !!file;
 
   const toggleSelected = (id: string) => {
     setSelectedIds((prev) => {
@@ -130,8 +129,8 @@ export function SubmitAbsenceMemoScreen({ roster, events, memos, createMemo, upd
   };
 
   const handleSubmit = async () => {
-    const person = roster.find((p) => p.id === cadetId);
-    if (!person || !canSubmit || !file) return;
+    const person = cadet;
+    if (!canSubmit || !file) return;
     setSubmitting(true);
     setSubmitError(undefined);
     try {
@@ -182,8 +181,8 @@ export function SubmitAbsenceMemoScreen({ roster, events, memos, createMemo, upd
   };
 
   const handleFutureSubmit = async () => {
-    const person = roster.find((p) => p.id === cadetId);
-    if (!person || !canSubmitFuture || !futureFile) return;
+    const person = cadet;
+    if (!canSubmitFuture || !futureFile) return;
     setFutureSubmitting(true);
     setFutureSubmitError(undefined);
     try {
@@ -262,325 +261,302 @@ export function SubmitAbsenceMemoScreen({ roster, events, memos, createMemo, upd
         </div>
       )}
 
-      <Card className="mb-6 max-w-md">
-        <CardHeader>
-          <CardTitle>Who are you?</CardTitle>
-          <CardDescription>Pick your name to see any absences that need a memo.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CadetCombobox
-            roster={roster}
-            value={cadetId}
-            onChange={(v) => {
-              setCadetId(v);
-              resetForm();
-              setJustSubmitted(false);
-              resetFutureForm();
-              setFutureJustSubmitted(false);
-            }}
-            className="w-full"
-          />
-        </CardContent>
-      </Card>
-
-      {cadetId && (
-        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-          <div className="space-y-6">
-            {myReturned.length > 0 && (
-              <Card className="border-warning/50">
-                <CardHeader>
-                  <CardTitle className="text-warning-foreground">Returned -- needs fixing</CardTitle>
-                  <CardDescription>Cadre sent these back. Attach a corrected PDF and resubmit within 48 hours.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {myReturned.map((m) => (
-                    <div key={m.id} className="rounded-md border border-input p-3">
-                      <div className="mb-1 text-sm font-medium">
-                        {m.pmtEventIds.length > 0 ? m.pmtEventIds.map((id) => eventLabel(events, id)).join(", ") : `${m.asClass} class absence`}
-                      </div>
-                      {m.returnReason && <p className="mb-2 text-sm text-muted-foreground">Reason: {m.returnReason}</p>}
-                      {resubmittingId === m.id ? (
-                        <div className="flex items-center gap-2">
-                          {resubmitFile ? (
-                            <span className="flex items-center gap-1.5 text-xs">
-                              <span className="max-w-40 truncate">{resubmitFile.name}</span>
-                              <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => setResubmitFile(undefined)}>
-                                Change
-                              </Button>
-                            </span>
-                          ) : (
-                            <input
-                              type="file"
-                              accept="application/pdf"
-                              onChange={(e) => setResubmitFile(e.target.files?.[0])}
-                              className="text-xs text-muted-foreground"
-                            />
-                          )}
-                          <Button size="sm" disabled={!resubmitFile || resubmitBusy} onClick={() => handleResubmit(m)}>
-                            {resubmitBusy ? "Uploading..." : "Resubmit"}
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button size="sm" variant="secondary" onClick={() => setResubmittingId(m.id)}>
-                          <Upload className="h-3.5 w-3.5" />
-                          Attach corrected PDF
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  {resubmitError && <p className="text-sm text-destructive">{resubmitError}</p>}
-                </CardContent>
-              </Card>
-            )}
-
-            <Card>
+      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+        <div className="space-y-6">
+          {myReturned.length > 0 && (
+            <Card className="border-warning/50">
               <CardHeader>
-                <CardTitle>New Absence Memo</CardTitle>
-                <CardDescription>
-                  Check off every absence this memo covers, and/or add an AS-Class absence below (not tracked automatically), then attach one PDF.
-                </CardDescription>
+                <CardTitle className="text-warning-foreground">Returned -- needs fixing</CardTitle>
+                <CardDescription>Cadre sent these back. Attach a corrected PDF and resubmit within 48 hours.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label>Absences needing a memo</Label>
-                  {myAssigned.length === 0 ? (
-                    <p className="rounded-md border border-input p-3 text-sm text-muted-foreground">
-                      Nothing on file right now -- if you were just marked absent, check back shortly.
-                    </p>
-                  ) : (
-                    <div className="space-y-1.5 rounded-md border border-input p-2">
-                      {myAssigned.map((m) => (
-                        <label key={m.id} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent">
-                          <input type="checkbox" checked={selectedIds.has(m.id)} onChange={() => toggleSelected(m.id)} />
-                          {m.pmtEventIds.map((id) => eventLabel(events, id)).join(", ")}
-                        </label>
-                      ))}
+              <CardContent className="space-y-3">
+                {myReturned.map((m) => (
+                  <div key={m.id} className="rounded-md border border-input p-3">
+                    <div className="mb-1 text-sm font-medium">
+                      {m.pmtEventIds.length > 0 ? m.pmtEventIds.map((id) => eventLabel(events, id)).join(", ") : `${m.asClass} class absence`}
                     </div>
-                  )}
-                </div>
-
-                {!addAsClass ? (
-                  <Button type="button" variant="outline" size="sm" onClick={() => setAddAsClass(true)}>
-                    <Plus className="h-3.5 w-3.5" />
-                    Add an AS-Class absence
-                  </Button>
-                ) : (
-                  <div className="space-y-3 rounded-md border border-input p-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">AS-Class absence</p>
-                      <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => setAddAsClass(false)}>
-                        Remove
+                    {m.returnReason && <p className="mb-2 text-sm text-muted-foreground">Reason: {m.returnReason}</p>}
+                    {resubmittingId === m.id ? (
+                      <div className="flex items-center gap-2">
+                        {resubmitFile ? (
+                          <span className="flex items-center gap-1.5 text-xs">
+                            <span className="max-w-40 truncate">{resubmitFile.name}</span>
+                            <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => setResubmitFile(undefined)}>
+                              Change
+                            </Button>
+                          </span>
+                        ) : (
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            onChange={(e) => setResubmitFile(e.target.files?.[0])}
+                            className="text-xs text-muted-foreground"
+                          />
+                        )}
+                        <Button size="sm" disabled={!resubmitFile || resubmitBusy} onClick={() => handleResubmit(m)}>
+                          {resubmitBusy ? "Uploading..." : "Resubmit"}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="secondary" onClick={() => setResubmittingId(m.id)}>
+                        <Upload className="h-3.5 w-3.5" />
+                        Attach corrected PDF
                       </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label>AS Class</Label>
-                        <Select value={asClass} onValueChange={(v) => setAsClass(v as AbsenceAsClass | typeof NONE)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NONE}>Select</SelectItem>
-                            {ABSENCE_AS_CLASSES.map((c) => (
-                              <SelectItem key={c} value={c}>
-                                {c}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Date of class</Label>
-                        <Input type="date" value={classDate} onChange={(e) => setClassDate(e.target.value)} />
-                      </div>
-                    </div>
+                    )}
+                  </div>
+                ))}
+                {resubmitError && <p className="text-sm text-destructive">{resubmitError}</p>}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>New Absence Memo</CardTitle>
+              <CardDescription>
+                Check off every absence this memo covers, and/or add an AS-Class absence below (not tracked automatically), then attach one PDF.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Absences needing a memo</Label>
+                {myAssigned.length === 0 ? (
+                  <p className="rounded-md border border-input p-3 text-sm text-muted-foreground">
+                    Nothing on file right now -- if you were just marked absent, check back shortly.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 rounded-md border border-input p-2">
+                    {myAssigned.map((m) => (
+                      <label key={m.id} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent">
+                        <input type="checkbox" checked={selectedIds.has(m.id)} onChange={() => toggleSelected(m.id)} />
+                        {m.pmtEventIds.map((id) => eventLabel(events, id)).join(", ")}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {!addAsClass ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => setAddAsClass(true)}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Add an AS-Class absence
+                </Button>
+              ) : (
+                <div className="space-y-3 rounded-md border border-input p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">AS-Class absence</p>
+                    <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => setAddAsClass(false)}>
+                      Remove
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label>Material covered that day</Label>
-                      <Input value={classTitle} onChange={(e) => setClassTitle(e.target.value)} placeholder="e.g. Chapter 4: Leadership Theory" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Instructor</Label>
-                      <Select value={instructor} onValueChange={(v) => setInstructor(v as Instructor | typeof NONE)}>
+                      <Label>AS Class</Label>
+                      <Select value={asClass} onValueChange={(v) => setAsClass(v as AbsenceAsClass | typeof NONE)}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE}>Select</SelectItem>
-                          {INSTRUCTORS.map((i) => (
-                            <SelectItem key={i} value={i}>
-                              {i}
+                          {ABSENCE_AS_CLASSES.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-1.5">
+                      <Label>Date of class</Label>
+                      <Input type="date" value={classDate} onChange={(e) => setClassDate(e.target.value)} />
+                    </div>
                   </div>
-                )}
-
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={medicalDocSent} onChange={(e) => setMedicalDocSent(e.target.checked)} />
-                  Medical documentation sent separately
-                </label>
-
-                <div className="space-y-1.5">
-                  <Label>Memorandum PDF</Label>
-                  {file ? (
-                    <div className="flex items-center gap-2 rounded-md border border-input p-2 text-sm">
-                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{file.name}</span>
-                      <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 shrink-0" onClick={() => setFile(undefined)}>
-                        Change
-                      </Button>
-                    </div>
-                  ) : (
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      onChange={(e) => setFile(e.target.files?.[0])}
-                      className="block w-full text-sm text-muted-foreground"
-                    />
-                  )}
-                </div>
-
-                {submitError && <p className="text-sm text-destructive">{submitError}</p>}
-                <Button onClick={handleSubmit} disabled={submitting || !canSubmit}>
-                  <Send className="h-3.5 w-3.5" />
-                  {submitting ? "Submitting..." : "Submit Memo"}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <CalendarClock className="h-4 w-4 text-primary" />
-                  Know you'll miss an upcoming PMT?
-                </CardTitle>
-                <CardDescription>
-                  Submit ahead of time for a PMT that hasn't happened yet. Cadre will still confirm the absence when it occurs.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {futureJustSubmitted && (
-                  <div className="flex items-center gap-2 rounded-md border border-success/50 bg-success/10 p-3 text-sm text-success">
-                    <CheckCircle2 className="h-4 w-4 shrink-0" />
-                    Submitted. This will be confirmed once cadre marks the absence for real.
+                  <div className="space-y-1.5">
+                    <Label>Material covered that day</Label>
+                    <Input value={classTitle} onChange={(e) => setClassTitle(e.target.value)} placeholder="e.g. Chapter 4: Leadership Theory" />
                   </div>
+                  <div className="space-y-1.5">
+                    <Label>Instructor</Label>
+                    <Select value={instructor} onValueChange={(v) => setInstructor(v as Instructor | typeof NONE)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NONE}>Select</SelectItem>
+                        {INSTRUCTORS.map((i) => (
+                          <SelectItem key={i} value={i}>
+                            {i}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={medicalDocSent} onChange={(e) => setMedicalDocSent(e.target.checked)} />
+                Medical documentation sent separately
+              </label>
+
+              <div className="space-y-1.5">
+                <Label>Memorandum PDF</Label>
+                {file ? (
+                  <div className="flex items-center gap-2 rounded-md border border-input p-2 text-sm">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{file.name}</span>
+                    <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 shrink-0" onClick={() => setFile(undefined)}>
+                      Change
+                    </Button>
+                  </div>
+                ) : (
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => setFile(e.target.files?.[0])}
+                    className="block w-full text-sm text-muted-foreground"
+                  />
                 )}
+              </div>
 
-                <div className="space-y-1.5">
-                  <Label>Upcoming PMTs</Label>
-                  {upcomingEvents.length === 0 ? (
-                    <p className="rounded-md border border-input p-3 text-sm text-muted-foreground">
-                      No upcoming PMTs on the calendar right now (or you've already reported everything scheduled).
-                    </p>
-                  ) : (
-                    <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-md border border-input p-2">
-                      {upcomingEvents.map((e) => (
-                        <label key={e.id} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent">
-                          <input type="checkbox" checked={futureSelectedIds.has(e.id)} onChange={() => toggleFutureSelected(e.id)} />
-                          {eventLabel(events, e.id)}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Reason</Label>
-                  <Select value={futureReason} onValueChange={(v) => setFutureReason(v as AbsenceReason | typeof NONE)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>Select</SelectItem>
-                      {ABSENCE_REASONS.map((r) => (
-                        <SelectItem key={r} value={r}>
-                          {r}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={futureMedicalDocSent} onChange={(e) => setFutureMedicalDocSent(e.target.checked)} />
-                  Medical documentation sent separately
-                </label>
-
-                <div className="space-y-1.5">
-                  <Label>Memorandum PDF</Label>
-                  {futureFile ? (
-                    <div className="flex items-center gap-2 rounded-md border border-input p-2 text-sm">
-                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{futureFile.name}</span>
-                      <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 shrink-0" onClick={() => setFutureFile(undefined)}>
-                        Change
-                      </Button>
-                    </div>
-                  ) : (
-                    <input
-                      type="file"
-                      accept="application/pdf"
-                      onChange={(e) => setFutureFile(e.target.files?.[0])}
-                      className="block w-full text-sm text-muted-foreground"
-                    />
-                  )}
-                </div>
-
-                {futureSubmitError && <p className="text-sm text-destructive">{futureSubmitError}</p>}
-                <Button onClick={handleFutureSubmit} disabled={futureSubmitting || !canSubmitFuture}>
-                  <Send className="h-3.5 w-3.5" />
-                  {futureSubmitting ? "Submitting..." : "Submit in advance"}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {myHistory.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>History</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-1.5">
-                  {myHistory.map((m) => (
-                    <div key={m.id} className="flex items-center justify-between text-sm">
-                      <span className="truncate">{m.pmtEventIds.length > 0 ? m.pmtEventIds.map((id) => eventLabel(events, id)).join(", ") : `${m.asClass} class`}</span>
-                      <Badge variant={m.status === "Accepted" ? "success" : m.status === "Rejected" ? "destructive" : "secondary"}>{m.status}</Badge>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          <Card className="h-fit">
-            <CardHeader>
-              <CardTitle>Memorandum requirements</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <ul className="list-disc space-y-2 pl-4">
-                <li>The absence memorandum must explain the reason for the absence, and it must be redacted IAW DAFH 33-337, The Tongue &amp; Quill.</li>
-                <li>
-                  The memorandum's MEMORANDUM FOR line must read "DET 756/OFC" for PMT absences, and/or "AS___ INSTRUCTOR" for AS class absences, as
-                  applicable, with the AS class code substituted into the respective line. If the memorandum is addressed to multiple offices, each
-                  subsequent office must be aligned under the first, as demonstrated in Chapter 14 of DAFH 33-337.
-                </li>
-                <li>
-                  The memorandum's FROM line must reflect the cadet's office symbol, as reflected in the latest Cadet Wing Organizational Chart (e.g.,
-                  DET 756/TRG), or the organizational symbol of your flight.
-                </li>
-                <li>The memorandum's SUBJECT line must read "Absence Memorandum".</li>
-                <li>
-                  The second line of the memorandum's signature block must reflect the cadet's duty title as reflected in the latest Cadet Wing
-                  Organizational chart (e.g., Maintenance Group Commander), or flight membership, if the cadet does not currently hold a Cadet Wing
-                  Position (e.g., Alpha Flight Member).
-                </li>
-                <li className="font-medium text-foreground">Should the aforementioned submission requirements not be met, the absence will not be excused.</li>
-              </ul>
+              {submitError && <p className="text-sm text-destructive">{submitError}</p>}
+              <Button onClick={handleSubmit} disabled={submitting || !canSubmit}>
+                <Send className="h-3.5 w-3.5" />
+                {submitting ? "Submitting..." : "Submit Memo"}
+              </Button>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <CalendarClock className="h-4 w-4 text-primary" />
+                Know you'll miss an upcoming PMT?
+              </CardTitle>
+              <CardDescription>
+                Submit ahead of time for a PMT that hasn't happened yet. Cadre will still confirm the absence when it occurs.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {futureJustSubmitted && (
+                <div className="flex items-center gap-2 rounded-md border border-success/50 bg-success/10 p-3 text-sm text-success">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  Submitted. This will be confirmed once cadre marks the absence for real.
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label>Upcoming PMTs</Label>
+                {upcomingEvents.length === 0 ? (
+                  <p className="rounded-md border border-input p-3 text-sm text-muted-foreground">
+                    No upcoming PMTs on the calendar right now (or you've already reported everything scheduled).
+                  </p>
+                ) : (
+                  <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-md border border-input p-2">
+                    {upcomingEvents.map((e) => (
+                      <label key={e.id} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent">
+                        <input type="checkbox" checked={futureSelectedIds.has(e.id)} onChange={() => toggleFutureSelected(e.id)} />
+                        {eventLabel(events, e.id)}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Reason</Label>
+                <Select value={futureReason} onValueChange={(v) => setFutureReason(v as AbsenceReason | typeof NONE)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>Select</SelectItem>
+                    {ABSENCE_REASONS.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={futureMedicalDocSent} onChange={(e) => setFutureMedicalDocSent(e.target.checked)} />
+                Medical documentation sent separately
+              </label>
+
+              <div className="space-y-1.5">
+                <Label>Memorandum PDF</Label>
+                {futureFile ? (
+                  <div className="flex items-center gap-2 rounded-md border border-input p-2 text-sm">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{futureFile.name}</span>
+                    <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 shrink-0" onClick={() => setFutureFile(undefined)}>
+                      Change
+                    </Button>
+                  </div>
+                ) : (
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => setFutureFile(e.target.files?.[0])}
+                    className="block w-full text-sm text-muted-foreground"
+                  />
+                )}
+              </div>
+
+              {futureSubmitError && <p className="text-sm text-destructive">{futureSubmitError}</p>}
+              <Button onClick={handleFutureSubmit} disabled={futureSubmitting || !canSubmitFuture}>
+                <Send className="h-3.5 w-3.5" />
+                {futureSubmitting ? "Submitting..." : "Submit in advance"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {myHistory.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>History</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1.5">
+                {myHistory.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between text-sm">
+                    <span className="truncate">{m.pmtEventIds.length > 0 ? m.pmtEventIds.map((id) => eventLabel(events, id)).join(", ") : `${m.asClass} class`}</span>
+                    <Badge variant={m.status === "Accepted" ? "success" : m.status === "Rejected" ? "destructive" : "secondary"}>{m.status}</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
-      )}
+
+        <Card className="h-fit">
+          <CardHeader>
+            <CardTitle>Memorandum requirements</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <ul className="list-disc space-y-2 pl-4">
+              <li>The absence memorandum must explain the reason for the absence, and it must be redacted IAW DAFH 33-337, The Tongue &amp; Quill.</li>
+              <li>
+                The memorandum's MEMORANDUM FOR line must read "DET 756/OFC" for PMT absences, and/or "AS___ INSTRUCTOR" for AS class absences, as
+                applicable, with the AS class code substituted into the respective line. If the memorandum is addressed to multiple offices, each
+                subsequent office must be aligned under the first, as demonstrated in Chapter 14 of DAFH 33-337.
+              </li>
+              <li>
+                The memorandum's FROM line must reflect the cadet's office symbol, as reflected in the latest Cadet Wing Organizational Chart (e.g.,
+                DET 756/TRG), or the organizational symbol of your flight.
+              </li>
+              <li>The memorandum's SUBJECT line must read "Absence Memorandum".</li>
+              <li>
+                The second line of the memorandum's signature block must reflect the cadet's duty title as reflected in the latest Cadet Wing
+                Organizational chart (e.g., Maintenance Group Commander), or flight membership, if the cadet does not currently hold a Cadet Wing
+                Position (e.g., Alpha Flight Member).
+              </li>
+              <li className="font-medium text-foreground">Should the aforementioned submission requirements not be met, the absence will not be excused.</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

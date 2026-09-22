@@ -3,13 +3,12 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { ClipboardList, Upload } from "lucide-react";
-import { CadetCombobox } from "../components/CadetCombobox";
 import { uploadMemoPdf } from "../lib/storage";
 import type { DeviationMemo, RosterPerson } from "../domain/types";
 import type { DeviationMemoInput } from "../hooks/useDeviationMemos";
 
 interface Props {
-  roster: RosterPerson[];
+  cadet: RosterPerson;
   memos: DeviationMemo[];
   updateMemo: (id: string, input: Partial<DeviationMemoInput>) => Promise<void>;
 }
@@ -18,8 +17,8 @@ function isOverdue(memo: DeviationMemo): boolean {
   return memo.status === "Assigned" && !!memo.dueDate && new Date(memo.dueDate).getTime() < Date.now();
 }
 
-export function SubmitDeviationMemoScreen({ roster, memos, updateMemo }: Props) {
-  const [cadetId, setCadetId] = useState("");
+export function SubmitDeviationMemoScreen({ cadet, memos, updateMemo }: Props) {
+  const cadetId = cadet.id;
   const [submittingId, setSubmittingId] = useState<string | undefined>();
   const [file, setFile] = useState<File | undefined>();
   const [busy, setBusy] = useState(false);
@@ -70,158 +69,146 @@ export function SubmitDeviationMemoScreen({ roster, memos, updateMemo }: Props) 
         Deviation Memo
       </h2>
 
-      <Card className="mb-6 max-w-md">
-        <CardHeader>
-          <CardTitle>Who are you?</CardTitle>
-          <CardDescription>Pick your name to see any Deviation Memos assigned to you.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CadetCombobox roster={roster} value={cadetId} onChange={setCadetId} className="w-full" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Assigned to you -- needs submission</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <Table aria-label="My assigned deviation memos">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Reason</TableHead>
+                  <TableHead>Assigned by</TableHead>
+                  <TableHead>Due</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {myAssigned.map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell className="max-w-sm">{m.reason}</TableCell>
+                    <TableCell>{m.assignedBy}</TableCell>
+                    <TableCell className={isOverdue(m) ? "text-destructive" : undefined}>
+                      {m.dueDate ? new Date(m.dueDate).toLocaleDateString() : "—"}
+                      {isOverdue(m) && " (overdue)"}
+                    </TableCell>
+                    <TableCell>
+                      {submittingId === m.id ? (
+                        <div className="flex items-center gap-2">
+                          {file ? (
+                            <span className="flex items-center gap-1.5 text-xs">
+                              <span className="max-w-32 truncate">{file.name}</span>
+                              <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => setFile(undefined)}>
+                                Change
+                              </Button>
+                            </span>
+                          ) : (
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              onChange={(e) => setFile(e.target.files?.[0])}
+                              className="text-xs text-muted-foreground"
+                            />
+                          )}
+                          <Button size="sm" disabled={!file || busy} onClick={() => handleSubmit(m)}>
+                            {busy ? "Uploading..." : "Submit"}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" variant="secondary" onClick={() => setSubmittingId(m.id)}>
+                          <Upload className="h-3.5 w-3.5" />
+                          Submit PDF
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {myAssigned.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      Nothing assigned to you right now.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+            {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+          </CardContent>
+        </Card>
 
-      {cadetId && (
-        <div className="space-y-6">
+        {myReturned.length > 0 && (
+          <Card className="border-warning/50">
+            <CardHeader>
+              <CardTitle className="text-warning-foreground">Returned -- needs fixing</CardTitle>
+              <CardDescription>Cadre sent these back. Attach a corrected PDF and resubmit within 48 hours.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-2">
+              {myReturned.map((m) => (
+                <div key={m.id} className="rounded-md border border-input p-3">
+                  <div className="mb-1 text-sm font-medium">{m.reason}</div>
+                  {m.reviewNotes && <p className="mb-2 text-sm text-muted-foreground">Cadre notes: {m.reviewNotes}</p>}
+                  {submittingId === m.id ? (
+                    <div className="flex items-center gap-2">
+                      {file ? (
+                        <span className="flex items-center gap-1.5 text-xs">
+                          <span className="max-w-32 truncate">{file.name}</span>
+                          <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => setFile(undefined)}>
+                            Change
+                          </Button>
+                        </span>
+                      ) : (
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                          onChange={(e) => setFile(e.target.files?.[0])}
+                          className="text-xs text-muted-foreground"
+                        />
+                      )}
+                      <Button size="sm" disabled={!file || busy} onClick={() => handleSubmit(m)}>
+                        {busy ? "Uploading..." : "Resubmit"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="secondary" onClick={() => setSubmittingId(m.id)}>
+                      <Upload className="h-3.5 w-3.5" />
+                      Attach corrected PDF
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {mySubmitted.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Assigned to you -- needs submission</CardTitle>
+              <CardTitle>Already submitted</CardTitle>
             </CardHeader>
             <CardContent className="pt-2">
-              <Table aria-label="My assigned deviation memos">
+              <Table aria-label="My submitted deviation memos">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Reason</TableHead>
-                    <TableHead>Assigned by</TableHead>
-                    <TableHead>Due</TableHead>
-                    <TableHead />
+                    <TableHead>Status</TableHead>
+                    <TableHead>Submitted</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {myAssigned.map((m) => (
+                  {mySubmitted.map((m) => (
                     <TableRow key={m.id}>
                       <TableCell className="max-w-sm">{m.reason}</TableCell>
-                      <TableCell>{m.assignedBy}</TableCell>
-                      <TableCell className={isOverdue(m) ? "text-destructive" : undefined}>
-                        {m.dueDate ? new Date(m.dueDate).toLocaleDateString() : "—"}
-                        {isOverdue(m) && " (overdue)"}
-                      </TableCell>
-                      <TableCell>
-                        {submittingId === m.id ? (
-                          <div className="flex items-center gap-2">
-                            {file ? (
-                              <span className="flex items-center gap-1.5 text-xs">
-                                <span className="max-w-32 truncate">{file.name}</span>
-                                <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => setFile(undefined)}>
-                                  Change
-                                </Button>
-                              </span>
-                            ) : (
-                              <input
-                                type="file"
-                                accept="application/pdf"
-                                onChange={(e) => setFile(e.target.files?.[0])}
-                                className="text-xs text-muted-foreground"
-                              />
-                            )}
-                            <Button size="sm" disabled={!file || busy} onClick={() => handleSubmit(m)}>
-                              {busy ? "Uploading..." : "Submit"}
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button size="sm" variant="secondary" onClick={() => setSubmittingId(m.id)}>
-                            <Upload className="h-3.5 w-3.5" />
-                            Submit PDF
-                          </Button>
-                        )}
-                      </TableCell>
+                      <TableCell>{m.status}</TableCell>
+                      <TableCell>{m.submittedAt ? new Date(m.submittedAt).toLocaleDateString() : "—"}</TableCell>
                     </TableRow>
                   ))}
-                  {myAssigned.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground">
-                        Nothing assigned to you right now.
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
-              {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
             </CardContent>
           </Card>
-
-          {myReturned.length > 0 && (
-            <Card className="border-warning/50">
-              <CardHeader>
-                <CardTitle className="text-warning-foreground">Returned -- needs fixing</CardTitle>
-                <CardDescription>Cadre sent these back. Attach a corrected PDF and resubmit within 48 hours.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-2">
-                {myReturned.map((m) => (
-                  <div key={m.id} className="rounded-md border border-input p-3">
-                    <div className="mb-1 text-sm font-medium">{m.reason}</div>
-                    {m.reviewNotes && <p className="mb-2 text-sm text-muted-foreground">Cadre notes: {m.reviewNotes}</p>}
-                    {submittingId === m.id ? (
-                      <div className="flex items-center gap-2">
-                        {file ? (
-                          <span className="flex items-center gap-1.5 text-xs">
-                            <span className="max-w-32 truncate">{file.name}</span>
-                            <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => setFile(undefined)}>
-                              Change
-                            </Button>
-                          </span>
-                        ) : (
-                          <input
-                            type="file"
-                            accept="application/pdf"
-                            onChange={(e) => setFile(e.target.files?.[0])}
-                            className="text-xs text-muted-foreground"
-                          />
-                        )}
-                        <Button size="sm" disabled={!file || busy} onClick={() => handleSubmit(m)}>
-                          {busy ? "Uploading..." : "Resubmit"}
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button size="sm" variant="secondary" onClick={() => setSubmittingId(m.id)}>
-                        <Upload className="h-3.5 w-3.5" />
-                        Attach corrected PDF
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {mySubmitted.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Already submitted</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <Table aria-label="My submitted deviation memos">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Submitted</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mySubmitted.map((m) => (
-                      <TableRow key={m.id}>
-                        <TableCell className="max-w-sm">{m.reason}</TableCell>
-                        <TableCell>{m.status}</TableCell>
-                        <TableCell>{m.submittedAt ? new Date(m.submittedAt).toLocaleDateString() : "—"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

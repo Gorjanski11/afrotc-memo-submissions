@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { connectStorageEmulator, getStorage } from "firebase/storage";
+import { connectAuthEmulator, getAuth } from "firebase/auth";
 
 // Same Firebase project/database as the TO's site, Accountability site, and the cadre-facing
 // Memorandums site (afrotc-memorandums-tracker) -- this is the GMC/POC-facing counterpart to that
@@ -21,6 +22,7 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const auth = getAuth(app);
 
 // In local dev, talk to the Firebase Local Emulator Suite instead of production so testing never
 // touches real cadet data or uploads real files. Start it with `firebase emulators:start` before
@@ -28,4 +30,5 @@ export const storage = getStorage(app);
 if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true") {
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
   connectStorageEmulator(storage, "127.0.0.1", 9199);
+  connectAuthEmulator(auth, "http://127.0.0.1:9099");
 }

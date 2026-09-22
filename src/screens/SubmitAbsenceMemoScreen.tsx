@@ -5,12 +5,12 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Send, CheckCircle2, Plus, Upload } from "lucide-react";
+import { FileText, Send, CheckCircle2, Plus, Upload, CalendarClock } from "lucide-react";
 import { CadetCombobox } from "../components/CadetCombobox";
 import { uploadMemoPdf } from "../lib/storage";
 import { flipAttendanceToPendingExcuse } from "../lib/attendanceLink";
-import { ABSENCE_AS_CLASSES, INSTRUCTORS } from "../domain/constants";
-import type { AbsenceAsClass, Instructor } from "../domain/constants";
+import { ABSENCE_AS_CLASSES, ABSENCE_REASONS, INSTRUCTORS } from "../domain/constants";
+import type { AbsenceAsClass, AbsenceReason, Instructor } from "../domain/constants";
 import type { AbsenceMemo, PmtEvent, RosterPerson } from "../domain/types";
 import type { AbsenceMemoInput } from "../hooks/useAbsenceMemos";
 
@@ -50,6 +50,17 @@ export function SubmitAbsenceMemoScreen({ roster, events, memos, createMemo, upd
   const [resubmitBusy, setResubmitBusy] = useState(false);
   const [resubmitError, setResubmitError] = useState<string | undefined>();
 
+  // Reporting an absence for a PMT that hasn't happened yet -- no Attendance record exists for it
+  // yet, so there's nothing to auto-assign from. A separate flow from the checklist above, which
+  // only ever lists absences Accountability has already recorded.
+  const [futureSelectedIds, setFutureSelectedIds] = useState<Set<string>>(new Set());
+  const [futureReason, setFutureReason] = useState<AbsenceReason | typeof NONE>(NONE);
+  const [futureMedicalDocSent, setFutureMedicalDocSent] = useState(false);
+  const [futureFile, setFutureFile] = useState<File | undefined>();
+  const [futureSubmitting, setFutureSubmitting] = useState(false);
+  const [futureSubmitError, setFutureSubmitError] = useState<string | undefined>();
+  const [futureJustSubmitted, setFutureJustSubmitted] = useState(false);
+
   const myAssigned = useMemo(
     () => memos.filter((m) => m.cadetId === cadetId && m.status === "Assigned").sort((a, b) => (a.assignedAt ?? "").localeCompare(b.assignedAt ?? "")),
     [memos, cadetId]
@@ -65,6 +76,35 @@ export function SubmitAbsenceMemoScreen({ roster, events, memos, createMemo, upd
         .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
     [memos, cadetId]
   );
+
+  // Every PMT this cadet already has a memo covering, in any status -- excluded from "upcoming" so
+  // they can't pre-submit twice for the same future absence.
+  const myCoveredPmtIds = useMemo(() => new Set(memos.filter((m) => m.cadetId === cadetId).flatMap((m) => m.pmtEventIds)), [memos, cadetId]);
+  const upcomingEvents = useMemo(
+    () =>
+      events
+        .filter((e) => new Date(e.eventDate).getTime() > Date.now() && !myCoveredPmtIds.has(e.id))
+        .sort((a, b) => a.eventDate.localeCompare(b.eventDate)),
+    [events, myCoveredPmtIds]
+  );
+
+  const toggleFutureSelected = (id: string) => {
+    setFutureSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const resetFutureForm = () => {
+    setFutureSelectedIds(new Set());
+    setFutureReason(NONE);
+    setFutureMedicalDocSent(false);
+    setFutureFile(undefined);
+  };
+
+  const canSubmitFuture = !!cadetId && futureSelectedIds.size > 0 && futureReason !== NONE && !!futureFile;
 
   const hasClassInfo = addAsClass && asClass !== NONE && classDate.trim() && classTitle.trim() && instructor !== NONE;
   const canSubmit = !!cadetId && (selectedIds.size > 0 || hasClassInfo) && !!file;
@@ -141,6 +181,51 @@ export function SubmitAbsenceMemoScreen({ roster, events, memos, createMemo, upd
     }
   };
 
+  const handleFutureSubmit = async () => {
+    const person = roster.find((p) => p.id === cadetId);
+    if (!person || !canSubmitFuture || !futureFile) return;
+    setFutureSubmitting(true);
+    setFutureSubmitError(undefined);
+    try {
+      const pmtEventIds = [...futureSelectedIds];
+      const uploaded = await uploadMemoPdf(futureFile, "absenceMemos", person.id);
+
+      await createMemo({
+        cadetId: person.id,
+        cadetName: person.name,
+        pmtEventIds,
+        // No Attendance record exists for a PMT that hasn't happened yet -- one "" placeholder per
+        // covered PMT, parallel to pmtEventIds. Accountability fills the real id in (and promotes
+        // the attendance straight to Pending Excuse) the moment that PMT actually happens and the
+        // cadet is marked absent as expected.
+        attendanceIds: pmtEventIds.map(() => ""),
+        assignedAt: undefined,
+        asClass: undefined,
+        classDate: undefined,
+        classTitle: undefined,
+        instructor: undefined,
+        reason: futureReason as AbsenceReason,
+        medicalDocSent: futureMedicalDocSent,
+        pdfUrl: uploaded.url,
+        pdfFileName: uploaded.fileName,
+        status: "Pending",
+        submittedAt: new Date().toISOString(),
+        reviewedAt: undefined,
+        reviewedBy: undefined,
+        reviewNotes: "",
+        returnReason: undefined,
+        attendanceUpdatedAt: undefined,
+      });
+
+      resetFutureForm();
+      setFutureJustSubmitted(true);
+    } catch (e) {
+      setFutureSubmitError(e instanceof Error ? e.message : "Failed to submit memo.");
+    } finally {
+      setFutureSubmitting(false);
+    }
+  };
+
   const handleResubmit = async (memo: AbsenceMemo) => {
     if (!resubmitFile) return;
     setResubmitBusy(true);
@@ -190,6 +275,8 @@ export function SubmitAbsenceMemoScreen({ roster, events, memos, createMemo, upd
               setCadetId(v);
               resetForm();
               setJustSubmitted(false);
+              resetFutureForm();
+              setFutureJustSubmitted(false);
             }}
             className="w-full"
           />
@@ -359,6 +446,92 @@ export function SubmitAbsenceMemoScreen({ roster, events, memos, createMemo, upd
                 <Button onClick={handleSubmit} disabled={submitting || !canSubmit}>
                   <Send className="h-3.5 w-3.5" />
                   {submitting ? "Submitting..." : "Submit Memo"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  <CalendarClock className="h-4 w-4 text-primary" />
+                  Know you'll miss an upcoming PMT?
+                </CardTitle>
+                <CardDescription>
+                  Submit ahead of time for a PMT that hasn't happened yet. Cadre will still confirm the absence when it occurs.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {futureJustSubmitted && (
+                  <div className="flex items-center gap-2 rounded-md border border-success/50 bg-success/10 p-3 text-sm text-success">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    Submitted. This will be confirmed once cadre marks the absence for real.
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label>Upcoming PMTs</Label>
+                  {upcomingEvents.length === 0 ? (
+                    <p className="rounded-md border border-input p-3 text-sm text-muted-foreground">
+                      No upcoming PMTs on the calendar right now (or you've already reported everything scheduled).
+                    </p>
+                  ) : (
+                    <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-md border border-input p-2">
+                      {upcomingEvents.map((e) => (
+                        <label key={e.id} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent">
+                          <input type="checkbox" checked={futureSelectedIds.has(e.id)} onChange={() => toggleFutureSelected(e.id)} />
+                          {eventLabel(events, e.id)}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Reason</Label>
+                  <Select value={futureReason} onValueChange={(v) => setFutureReason(v as AbsenceReason | typeof NONE)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>Select</SelectItem>
+                      {ABSENCE_REASONS.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {r}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={futureMedicalDocSent} onChange={(e) => setFutureMedicalDocSent(e.target.checked)} />
+                  Medical documentation sent separately
+                </label>
+
+                <div className="space-y-1.5">
+                  <Label>Memorandum PDF</Label>
+                  {futureFile ? (
+                    <div className="flex items-center gap-2 rounded-md border border-input p-2 text-sm">
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{futureFile.name}</span>
+                      <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 shrink-0" onClick={() => setFutureFile(undefined)}>
+                        Change
+                      </Button>
+                    </div>
+                  ) : (
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => setFutureFile(e.target.files?.[0])}
+                      className="block w-full text-sm text-muted-foreground"
+                    />
+                  )}
+                </div>
+
+                {futureSubmitError && <p className="text-sm text-destructive">{futureSubmitError}</p>}
+                <Button onClick={handleFutureSubmit} disabled={futureSubmitting || !canSubmitFuture}>
+                  <Send className="h-3.5 w-3.5" />
+                  {futureSubmitting ? "Submitting..." : "Submit in advance"}
                 </Button>
               </CardContent>
             </Card>
